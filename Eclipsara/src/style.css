@@ -1,0 +1,28 @@
+body {
+  margin: 0;
+  background-color: #0b0c10; /* dark arena feel */
+  color: #fff;
+  font-family: 'Arial', sans-serif;
+}
+
+canvas {
+  display: block;
+  margin: 20px auto;
+  background-color: #1c1f26;
+  border: 2px solid #fff;
+}
+
+.health-bar {
+  width: 200px;
+  height: 20px;
+  background-color: #333;
+  border: 1px solid #fff;
+  margin: 10px auto;
+  position: relative;
+}
+
+.health-bar-inner {
+  height: 100%;
+  background-color: #f00;
+  width: 100%;
+}
