@@ -64,6 +64,11 @@ const GameCanvas = ({ width = 800, height = 600 }) => {
         if (player.attack.active) {
           const atk = player.attack;
 
+          // Keep attack position relative to player so it can hit targets in front
+          // (default: upwards from player center; change as needed)
+          atk.x = player.x + (player.width - atk.width) / 2;
+          atk.y = player.y - atk.height;
+
           if (checkCollision(atk, boss)) {
             setBossHP(prev => Math.max(0, prev - atk.dmg));
             boss.hitTimer = 10;
@@ -75,51 +80,55 @@ const GameCanvas = ({ width = 800, height = 600 }) => {
         if (!boss.enraged && bossHP <= 50) {
           boss.enraged = true;
           boss.speed *= 1.5;
-          boss.fireballCooldown = 60;
+          boss.fireballCooldown = 999999; // disable fireball attacks once enraged
         }
 
         if (bossHP > 0) {
-          // Melee rush every 300 frames
-          if (!boss.meleeRush && frameCount % 300 === 0) {
-            boss.meleeRush = true;
-            boss.meleeTimer = 60;
-          }
+          if (!boss.enraged) {
+            // Not enraged: keep boss stationary and fire projectiles
+            if (boss.fireballCooldown <= 0) {
+              for (let i = -1; i <= 1; i++) {
+                const dx = player.x + player.width / 2 - (boss.x + boss.width / 2) + i * 30;
+                const dy = player.y + player.height / 2 - (boss.y + boss.height / 2);
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const speed = 4;
+                boss.fireballs.push({
+                  x: boss.x + boss.width / 2,
+                  y: boss.y + boss.height / 2,
+                  dx: (dx/dist)*speed,
+                  dy: (dy/dist)*speed,
+                  width: 10,
+                  height: 10,
+                  dmg: 5
+                });
+              }
+              boss.fireballCooldown = 90;
+            } else {
+              boss.fireballCooldown--;
+            }
+          } else {
+            // Enraged: move toward player and melee
+            if (!boss.meleeRush && frameCount % 300 === 0) {
+              boss.meleeRush = true;
+              boss.meleeTimer = 60;
+            }
 
-          let moveSpeed = boss.meleeRush ? boss.speed * 3 : boss.speed;
-          if (boss.x + boss.width / 2 < player.x + player.width / 2) boss.x += moveSpeed;
-          if (boss.x + boss.width / 2 > player.x + player.width / 2) boss.x -= moveSpeed;
-          if (boss.y + boss.height / 2 < player.y + player.height / 2) boss.y += moveSpeed;
-          if (boss.y + boss.height / 2 > player.y + player.height / 2) boss.y -= moveSpeed;
+            let moveSpeed = boss.meleeRush ? boss.speed * 3 : boss.speed;
+            if (boss.x + boss.width / 2 < player.x + player.width / 2) boss.x += moveSpeed;
+            if (boss.x + boss.width / 2 > player.x + player.width / 2) boss.x -= moveSpeed;
+            if (boss.y + boss.height / 2 < player.y + player.height / 2) boss.y += moveSpeed;
+            if (boss.y + boss.height / 2 > player.y + player.height / 2) boss.y -= moveSpeed;
 
-          if (boss.meleeRush) {
-            boss.meleeTimer--;
-            if (boss.meleeTimer <= 0) boss.meleeRush = false;
+            if (boss.meleeRush) {
+              boss.meleeTimer--;
+              if (boss.meleeTimer <= 0) boss.meleeRush = false;
+            }
           }
 
           // Boss melee collision
           if (checkCollision(boss, player)) {
             setPlayerHP(prev => Math.max(0, prev - boss.dmg));
           }
-
-          // ---------------- Fireball ----------------
-          if (boss.fireballCooldown <= 0) {
-            for (let i = -1; i <= 1; i++) {
-              const dx = player.x + player.width / 2 - (boss.x + boss.width / 2) + i * 30;
-              const dy = player.y + player.height / 2 - (boss.y + boss.height / 2);
-              const dist = Math.sqrt(dx*dx + dy*dy);
-              const speed = 4;
-              boss.fireballs.push({
-                x: boss.x + boss.width / 2,
-                y: boss.y + boss.height / 2,
-                dx: (dx/dist)*speed,
-                dy: (dy/dist)*speed,
-                width: 10,
-                height: 10,
-                dmg: 5
-              });
-            }
-            boss.fireballCooldown = boss.enraged ? 60 : 90;
-          } else boss.fireballCooldown--;
 
           // Move fireballs
           for (let i = boss.fireballs.length - 1; i >= 0; i--) {
@@ -146,13 +155,27 @@ const GameCanvas = ({ width = 800, height = 600 }) => {
 
       // ---------------- Draw Player Attack ----------------
       if (player.attack.active && slashImageRef.current) {
-        // const angle = Math.atan2(boss.y + boss.height / 2 - (player.y + player.height / 2), boss.x + boss.width / 2 - (player.x + player.width / 2));
-        // ctx.save();
-        // ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-        // ctx.rotate(angle);
-        // ctx.drawImage(slashImageRef.current, -slashImageRef.current.width / 2, -slashImageRef.current.height / 2);
-        // ctx.restore();
-        ctx.drawImage(slashImageRef.current, player.x + player.width, player.y, 100, 100); // temporary to test
+        const atk = player.attack;
+
+        // Optional: draw debug attack hitbox
+        // ctx.strokeStyle = 'cyan';
+        // ctx.strokeRect(atk.x, atk.y, atk.width, atk.height);
+
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const bx = boss.x + boss.width / 2;
+        const by = boss.y + boss.height / 2;
+        const angle = Math.atan2(by - py, bx - px);
+
+        const slashSize = 80;
+        const drawX = atk.x + atk.width / 2;
+        const drawY = atk.y + atk.height / 2;
+
+        ctx.save();
+        ctx.translate(drawX, drawY);
+        ctx.rotate(angle);
+        ctx.drawImage(slashImageRef.current, -slashSize / 2, -slashSize / 2, slashSize, slashSize);
+        ctx.restore();
       }
 
       // ---------------- Draw Boss ----------------
